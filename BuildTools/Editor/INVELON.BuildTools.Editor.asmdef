@@ -1,7 +1,10 @@
 {
     "name": "INVELON.BuildTools.Editor",
     "rootNamespace": "INVELON.Editor",
-    "references": [],
+    "references": [
+        "Unity.XR.OpenXR",
+        "Unity.XR.OpenXR.Editor"
+    ],
     "includePlatforms": [
         "Editor"
     ],
