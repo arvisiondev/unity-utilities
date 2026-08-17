@@ -2,7 +2,7 @@
   "name": "com.invelon.unity-utilities",
   "version": "1.0.0",
   "displayName": "Unity Utilities",
-  "description": "A collection of standalone Unity Editor tools and utilities: MissingScriptsFinder (find/delete missing scripts in scenes and prefabs), SceneSwitcher (quick-switch scenes from an Editor window), BuildTools/VRGameBuilder (META Quest / PICO Android build pipeline with OpenXR profile switching), and PackageManifestInstaller (one-click UPM dependency installer, also available as its own UPM package under PackageManifestInstaller/).",
+  "description": "A collection of standalone Unity Editor tools and utilities: MissingScriptsFinder (find/delete missing scripts in scenes and prefabs), SceneSwitcher (quick-switch scenes from an Editor window), BuildTools/VRGameBuilder (META Quest / PICO Android build pipeline with OpenXR profile switching), MRSetup/MRPlatformConfigurator (Meta Quest / PICO OpenXR passthrough configuration switcher), and PackageManifestInstaller (one-click UPM dependency installer). Each tool folder is also its own self-contained UPM package — see AGENTS.md for the structure.",
   "unity": "2021.3",
   "author": {
     "name": "INVELON",

@@ -1,0 +1,22 @@
+{
+  "name": "com.invelon.build-tools",
+  "version": "1.0.0",
+  "displayName": "INVELON Build Tools",
+  "description": "Editor window for building Android APKs targeting META Quest or PICO devices. Switches OpenXR interaction profiles and patches AndroidManifest.xml per target platform, manages bundle version/version code, and names the output APK as [ProductName]_[PLATFORM]_[VERSION].apk.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.xr.openxr": "1.9.0"
+  },
+  "author": {
+    "name": "INVELON",
+    "url": "https://invelon.com/"
+  },
+  "keywords": [
+    "editor",
+    "build",
+    "vr",
+    "xr",
+    "openxr",
+    "android"
+  ]
+}

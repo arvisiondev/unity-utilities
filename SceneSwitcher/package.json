@@ -1,0 +1,16 @@
+{
+  "name": "com.invelon.scene-switcher",
+  "version": "1.0.0",
+  "displayName": "INVELON Scene Switcher",
+  "description": "Editor window to quickly switch between scenes without hunting through the Project view. Lists either the scenes in Build Settings or every scene in the project, with optional auto-save before switching.",
+  "unity": "2021.3",
+  "author": {
+    "name": "INVELON",
+    "url": "https://invelon.com/"
+  },
+  "keywords": [
+    "editor",
+    "scenes",
+    "productivity"
+  ]
+}

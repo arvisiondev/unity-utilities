@@ -1,0 +1,22 @@
+{
+  "name": "com.invelon.mr-setup",
+  "version": "1.0.0",
+  "displayName": "INVELON MR Setup",
+  "description": "Editor tool that switches the project's Android OpenXR feature set, Minimum API Level, and scripting define symbols between a Meta Quest passthrough configuration and a PICO passthrough configuration in a single step. Verifies the vendor OpenXR package (com.unity.xr.meta-openxr or com.unity.xr.openxr.picoxr) is installed before changing any setting, and aborts with a dialog listing exactly what's missing otherwise.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.xr.openxr": "1.9.0"
+  },
+  "author": {
+    "name": "INVELON",
+    "url": "https://invelon.com/"
+  },
+  "keywords": [
+    "editor",
+    "xr",
+    "openxr",
+    "mixed-reality",
+    "meta-quest",
+    "pico"
+  ]
+}
