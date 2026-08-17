@@ -37,3 +37,14 @@ and a `dependencies-json-generator` Claude skill for authoring manifests. See
 `PackageManifestInstaller/README.md` for full documentation.
 
 **Menu:** `INVELON > Package Manager > Dependency Installer`
+
+### MRSetup / MRPlatformConfigurator
+
+`MRSetup/Editor/MRPlatformConfigurator.cs` — Editor tool that switches the project's Android OpenXR feature set,
+Minimum API Level, and scripting define symbols between a Meta Quest passthrough configuration and a PICO
+passthrough configuration in a single step. Verifies the vendor OpenXR package (`com.unity.xr.meta-openxr` or
+`com.unity.xr.openxr.picoxr`) is installed before changing any setting, and aborts with a dialog listing exactly
+what's missing otherwise.
+
+**Menu:** `INVELON > VRCulture > MR Setup > Configure Android For Meta Quest` /
+`INVELON > VRCulture > MR Setup > Configure Android For PICO`

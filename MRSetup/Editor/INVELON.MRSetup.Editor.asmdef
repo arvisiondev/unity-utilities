@@ -1,0 +1,19 @@
+{
+    "name": "INVELON.MRSetup.Editor",
+    "rootNamespace": "INVELON.Editor",
+    "references": [
+        "Unity.XR.OpenXR",
+        "Unity.XR.OpenXR.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
