@@ -59,7 +59,7 @@ public static class MRPlatformConfigurator
     /// Configures Android OpenXR features, Minimum API Level, and scripting defines for a
     /// Meta Quest passthrough build. Aborts with a dialog if the Meta OpenXR package is missing.
     /// </summary>
-    [MenuItem("INVELON/VRCulture/MR Setup/Configure Android For Meta Quest")]
+    [MenuItem("INVELON/MR Setup/Configure Android For Meta Quest")]
     public static void ConfigureForMetaQuest()
     {
         var missing = FindMissingFeatures(MetaFeatures);
@@ -94,7 +94,7 @@ public static class MRPlatformConfigurator
     /// Configures Android OpenXR features, Minimum API Level, and scripting defines for a
     /// PICO passthrough build. Aborts with a dialog if the PICO OpenXR package is missing.
     /// </summary>
-    [MenuItem("INVELON/VRCulture/MR Setup/Configure Android For PICO")]
+    [MenuItem("INVELON/MR Setup/Configure Android For PICO")]
     public static void ConfigureForPico()
     {
         var missing = FindMissingFeatures(PicoFeatures);

@@ -60,5 +60,5 @@ passthrough configuration in a single step. Verifies the vendor OpenXR package (
 `com.unity.xr.openxr.picoxr`) is installed before changing any setting, and aborts with a dialog listing exactly
 what's missing otherwise. Ships as its own self-contained UPM package (`com.invelon.mr-setup`).
 
-**Menu:** `INVELON > VRCulture > MR Setup > Configure Android For Meta Quest` /
-`INVELON > VRCulture > MR Setup > Configure Android For PICO`
+**Menu:** `INVELON > MR Setup > Configure Android For Meta Quest` /
+`INVELON > MR Setup > Configure Android For PICO`
