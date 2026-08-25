@@ -42,6 +42,12 @@ namespace INVELON.Editor
 
         private Vector2           _scroll;
 
+        // Hard ceiling on renormalize→refresh cycles per entry, in case UPM keeps
+        // re-resolving a given tarball back to an absolute path on every refresh —
+        // guarantees this never becomes an infinite loop.
+        private const int MaxRenormalizeAttemptsPerPackage = 3;
+        private readonly Dictionary<string, int> _renormalizeAttempts = new Dictionary<string, int>();
+
         // ── Menu item ─────────────────────────────────────────────────────────
 
         /// <summary>Opens the Package Manifest Installer window.</summary>
@@ -80,19 +86,36 @@ namespace INVELON.Editor
             PackageManagerEvents.registeredPackages -= OnRegisteredPackages;
         }
 
+        // Set right before the Refresh() that RenormalizeTarballPaths triggers, so the
+        // registeredPackages event that refresh fires back can be told apart from a
+        // "real" one and ignored — otherwise every renormalize would refresh, which
+        // would fire registeredPackages again, which would renormalize again, forever.
+        private bool _suppressNextRegisteredPackagesEvent;
+
         private void OnRegisteredPackages(PackageRegistrationEventArgs args)
         {
+            if (_suppressNextRegisteredPackagesEvent)
+            {
+                _suppressNextRegisteredPackagesEvent = false;
+                return;
+            }
+
             RenormalizeTarballPaths();
         }
 
         /// <summary>
         /// Re-writes any tarball dependency in manifest.json that UPM resolved to an
-        /// absolute path back to its relative "file:./name.tgz" form.
+        /// absolute path back to its relative "file:./name.tgz" form, clears any stale
+        /// packages-lock.json entry left behind by the bad resolution, and refreshes so
+        /// UPM actually resolves and installs the package under the corrected reference.
+        /// Without the refresh, the manifest looks right but the package is never
+        /// actually pulled in (it never gets an entry in packages-lock.json).
         /// </summary>
         private void RenormalizeTarballPaths()
         {
-            string manifestPath = Path.GetFullPath(
-                Path.Combine(Application.dataPath, "../Packages/manifest.json"));
+            string packagesDir  = Path.GetFullPath(Path.Combine(Application.dataPath, "../Packages"));
+            string manifestPath = Path.Combine(packagesDir, "manifest.json");
+            string lockPath     = Path.Combine(packagesDir, "packages-lock.json");
             if (!File.Exists(manifestPath)) return;
 
             IEnumerable<PackageEntry> tarballEntries = _tabs
@@ -102,25 +125,53 @@ namespace INVELON.Editor
 
             try
             {
-                string content = File.ReadAllText(manifestPath);
+                string content    = File.ReadAllText(manifestPath);
                 bool   anyChanged = false;
+                var    fixedIds   = new List<string>();
 
                 foreach (PackageEntry entry in tarballEntries)
                 {
                     string fileRef = $"file:./{ResolveTgzFileName(entry)}";
                     if (!UpmManifestJson.IsTarballPathAbsolute(content, entry.id, fileRef))
+                    {
+                        _renormalizeAttempts.Remove(entry.id);
                         continue;
+                    }
+
+                    int attempts = _renormalizeAttempts.TryGetValue(entry.id, out int a) ? a : 0;
+                    if (attempts >= MaxRenormalizeAttemptsPerPackage)
+                    {
+                        Debug.LogWarning(string.Format(InstallerStrings.LogTarballRenormalizeGaveUp, entry.id, fileRef));
+                        continue;
+                    }
+                    _renormalizeAttempts[entry.id] = attempts + 1;
 
                     content = UpmManifestJson.SetDependency(content, entry.id, fileRef, out bool changed);
                     if (changed)
                     {
                         anyChanged = true;
+                        fixedIds.Add(entry.id);
                         Debug.Log(string.Format(InstallerStrings.LogTarballRenormalized, entry.id, fileRef));
                     }
                 }
 
-                if (anyChanged)
-                    File.WriteAllText(manifestPath, content);
+                if (!anyChanged) return;
+
+                File.WriteAllText(manifestPath, content);
+
+                // The absolute-path resolution UPM just did may have left a lock entry
+                // keyed to the wrong path (or none at all) — drop it so the refresh
+                // below re-resolves the package cleanly under the relative reference.
+                if (File.Exists(lockPath))
+                {
+                    string lockContent = File.ReadAllText(lockPath);
+                    foreach (string id in fixedIds)
+                        lockContent = UpmManifestJson.RemoveDependencyEntry(lockContent, id, out _);
+                    File.WriteAllText(lockPath, lockContent);
+                }
+
+                _suppressNextRegisteredPackagesEvent = true;
+                AssetDatabase.Refresh();
             }
             catch (Exception ex)
             {
