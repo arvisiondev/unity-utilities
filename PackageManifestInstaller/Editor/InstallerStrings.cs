@@ -66,6 +66,10 @@ namespace INVELON.Editor
         public const string AssetStoreDefaultNote =
             "Log in to the Unity account that owns the asset and download {0} {1} " +
             "from Package Manager → My Assets.";
+        public const string AssetStoreCheckedPathNote =
+            "(checked Assets/{0} — not found; fix assetFolderPath in the manifest if the asset is actually installed elsewhere)";
+        public const string AssetStoreFoundAtNote =
+            "Found at Assets/{0}";
 
         // Footer
         public const string ExportButton       = "Export current state → JSON";

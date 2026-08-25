@@ -159,15 +159,17 @@ namespace INVELON.Editor
                 // Asset Store packages are not tracked by UPM — use folder/EditorPrefs detection
                 if (row.Entry.source == PackageSourceIds.AssetStore)
                 {
-                    if (IsAssetStorePackageInstalled(row.Entry))
+                    if (IsAssetStorePackageInstalled(row.Entry, out string checkedPath))
                     {
                         row.Status           = PackageStatus.Installed;
                         row.InstalledVersion = row.Entry.version;
+                        row.AssetPathChecked = checkedPath;
                     }
                     else
                     {
                         row.Status           = PackageStatus.Missing;
                         row.InstalledVersion = "—";
+                        row.AssetPathChecked = checkedPath;
                     }
                     continue;
                 }
@@ -440,12 +442,14 @@ namespace INVELON.Editor
                     EditorPrefs.DeleteKey(AssetStorePrefsKey(row.Entry));
                     row.Status           = PackageStatus.Missing;
                     row.InstalledVersion = "—";
+                    row.AssetPathChecked = row.Entry.assetFolderPath;
                 }
                 else
                 {
                     EditorPrefs.SetBool(AssetStorePrefsKey(row.Entry), true);
                     row.Status           = PackageStatus.Installed;
                     row.InstalledVersion = row.Entry.version;
+                    row.AssetPathChecked = null; // manual override, not a folder match
                 }
             }
 
@@ -487,9 +491,21 @@ namespace INVELON.Editor
                     : string.Format(InstallerStrings.AssetStoreDefaultNote,
                         row.Entry.displayName ?? row.Entry.id, row.Entry.version);
 
+                if (!string.IsNullOrEmpty(row.AssetPathChecked))
+                    note += $"  {string.Format(InstallerStrings.AssetStoreCheckedPathNote, row.AssetPathChecked)}";
+
                 EditorGUILayout.LabelField(
                     $"  ⓘ  {note}",
                     new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, normal = { textColor = InstallerColors.Warn } });
+            }
+            else if (isAssetStore && !string.IsNullOrEmpty(row.AssetPathChecked) &&
+                     !string.Equals(row.AssetPathChecked, row.Entry.assetFolderPath, StringComparison.OrdinalIgnoreCase))
+            {
+                // Only shown when the fuzzy fallback found the folder somewhere OTHER than
+                // the configured assetFolderPath — the exact-match case needs no extra note.
+                EditorGUILayout.LabelField(
+                    $"  ✓  {string.Format(InstallerStrings.AssetStoreFoundAtNote, row.AssetPathChecked)}",
+                    new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, normal = { textColor = InstallerColors.Ok } });
             }
             else if (!string.IsNullOrEmpty(row.Entry.installNote))
             {
@@ -696,10 +712,18 @@ namespace INVELON.Editor
             if (row.Entry.source == PackageSourceIds.OpenUpm)
                 EnsureOpenUpmScopedRegistry(row.Entry);
 
-            if (row.Entry.source == PackageSourceIds.Tarball && !EnsureTarballInManifest(row.Entry))
+            if (row.Entry.source == PackageSourceIds.Tarball)
             {
-                row.Status       = PackageStatus.Error;
-                row.ErrorMessage = string.Format(InstallerStrings.LogTgzNotFound, ResolveTgzFileName(row.Entry));
+                // Tarballs are registered by writing manifest.json directly (relative
+                // file: ref). Client.Add() must NOT be called afterward for this source:
+                // UPM resolves file: identifiers to an absolute path and writes that back
+                // into manifest.json, clobbering the relative reference we just wrote.
+                bool ok = EnsureTarballInManifest(row.Entry);
+
+                row.Status       = ok ? PackageStatus.Installed : PackageStatus.Error;
+                row.ErrorMessage = ok ? null : string.Format(InstallerStrings.LogTgzNotFound, ResolveTgzFileName(row.Entry));
+                if (ok) row.InstalledVersion = row.Entry.version;
+
                 _installQueue.Dequeue();
                 _installedCount++;
                 ProcessQueue();
@@ -780,9 +804,12 @@ namespace INVELON.Editor
                     return entry.url;
 
                 case PackageSourceIds.Tarball:
-                    // Relative to Packages/, so manifest.json stays portable across machines
-                    // (must match the fileRef written by EnsureTarballInManifest).
-                    return $"file:./{ResolveTgzFileName(entry)}";
+                    // Unreachable: tarballs are registered via EnsureTarballInManifest and
+                    // never go through Client.Add() (see ProcessQueue) — calling Client.Add
+                    // with a file: identifier makes UPM overwrite manifest.json with an
+                    // absolute, machine-specific path.
+                    throw new InvalidOperationException(
+                        $"BuildPackageIdentifier should never be called for tarball entry '{entry.id}'.");
 
                 case PackageSourceIds.AssetStore:
                     // Unreachable: the Install button is never shown for assetstore entries.
@@ -802,21 +829,67 @@ namespace INVELON.Editor
         /// <summary>
         /// An Asset Store package counts as installed when:
         ///   1. The dev has clicked "Mark OK" (stored in EditorPrefs), OR
-        ///   2. assetFolderPath is set and the folder exists under Assets/.
+        ///   2. assetFolderPath (or a folder matching its last segment) exists under Assets/.
+        /// Sets <paramref name="checkedPath"/> to the path that was found (if installed) or
+        /// the configured assetFolderPath (if not), so the UI can show what was actually
+        /// checked instead of a bare "Missing" when the author's path is stale or wrong.
         /// </summary>
-        private static bool IsAssetStorePackageInstalled(PackageEntry entry)
+        private static bool IsAssetStorePackageInstalled(PackageEntry entry, out string checkedPath)
         {
+            checkedPath = entry.assetFolderPath;
+
             if (EditorPrefs.GetBool(AssetStorePrefsKey(entry), false))
                 return true;
 
-            if (!string.IsNullOrEmpty(entry.assetFolderPath))
+            if (string.IsNullOrEmpty(entry.assetFolderPath))
+                return false;
+
+            // Fast path: exact match at the configured relative path.
+            string exactPath = Path.GetFullPath(Path.Combine(Application.dataPath, entry.assetFolderPath));
+            if (Directory.Exists(exactPath))
+                return true;
+
+            // Fallback: the asset may have been imported under a different parent folder
+            // (Asset Store import paths vary by version, or the author mistyped the path).
+            // Search anywhere under Assets/ for a folder whose name matches the last segment.
+            string targetName = Path.GetFileName(entry.assetFolderPath.TrimEnd('/', '\\'));
+            if (string.IsNullOrEmpty(targetName))
+                return false;
+
+            string found = FindDirectoryByName(Application.dataPath, targetName);
+            if (found == null)
+                return false;
+
+            checkedPath = GetPathRelativeToAssets(found);
+            return true;
+        }
+
+        /// <summary>Recursively searches for a directory named <paramref name="targetName"/> (case-insensitive) under <paramref name="root"/>.</summary>
+        private static string FindDirectoryByName(string root, string targetName)
+        {
+            string[] subDirs;
+            try { subDirs = Directory.GetDirectories(root); }
+            catch (Exception) { return null; }
+
+            foreach (string dir in subDirs)
             {
-                string fullPath = Path.GetFullPath(
-                    Path.Combine(Application.dataPath, entry.assetFolderPath));
-                return Directory.Exists(fullPath);
+                if (string.Equals(Path.GetFileName(dir), targetName, StringComparison.OrdinalIgnoreCase))
+                    return dir;
+
+                string nested = FindDirectoryByName(dir, targetName);
+                if (nested != null) return nested;
             }
 
-            return false;
+            return null;
+        }
+
+        private static string GetPathRelativeToAssets(string fullPath)
+        {
+            string assetsFull = Path.GetFullPath(Application.dataPath).Replace('\\', '/').TrimEnd('/');
+            string normalized = fullPath.Replace('\\', '/').TrimEnd('/');
+            return normalized.StartsWith(assetsFull, StringComparison.OrdinalIgnoreCase)
+                ? normalized.Substring(assetsFull.Length).TrimStart('/')
+                : normalized;
         }
 
         // ── Tarball helpers ───────────────────────────────────────────────────
@@ -981,7 +1054,8 @@ namespace INVELON.Editor
                     Id          = p.name,
                     Version     = p.version,
                     DisplayName = p.displayName,
-                    GitUrl      = p.source == PackageSource.Git ? ExtractGitUrl(p.packageId) : null
+                    GitUrl      = p.source == PackageSource.Git ? ExtractGitUrl(p.packageId) : null,
+                    TgzFileName = p.source == PackageSource.LocalTarball ? ExtractTgzFileName(p.packageId) : null
                 });
 
                 string json = ExportJsonBuilder.Build(
@@ -1018,6 +1092,15 @@ namespace INVELON.Editor
             if (string.IsNullOrEmpty(packageId)) return packageId;
             int at = packageId.IndexOf('@');
             return at >= 0 ? packageId.Substring(at + 1) : packageId;
+        }
+
+        /// <summary>Extracts the .tgz file name from a local-tarball packageId (e.g. "id@file:./x.tgz").</summary>
+        private static string ExtractTgzFileName(string packageId)
+        {
+            if (string.IsNullOrEmpty(packageId)) return null;
+            int at = packageId.IndexOf('@');
+            string filePart = at >= 0 ? packageId.Substring(at + 1) : packageId;
+            return Path.GetFileName(filePart.Replace('\\', '/'));
         }
 
         // ── Misc helpers ──────────────────────────────────────────────────────

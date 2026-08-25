@@ -65,7 +65,7 @@
           },
           "assetFolderPath": {
             "type": "string",
-            "description": "Optional. For 'assetstore' only. Relative path under Assets/ where the package is imported. Used to auto-detect installation without requiring a manual Mark OK click. E.g. 'Demigiant/DOTweenPro' for DOTween Pro or 'Plugins/I2' for I2 Localization."
+            "description": "Optional. For 'assetstore' only. Relative path under Assets/ where the package is imported. Used to auto-detect installation without requiring a manual Mark OK click. E.g. 'Demigiant/DOTweenPro' for DOTween Pro or 'Plugins/I2' for I2 Localization. If the exact path isn't found, the installer also searches anywhere under Assets/ for a folder matching the last path segment (e.g. 'DOTweenPro'), so a stale or slightly-off path still detects correctly — the row's note shows where it was actually found."
           },
           "displayName": {
             "type": "string",

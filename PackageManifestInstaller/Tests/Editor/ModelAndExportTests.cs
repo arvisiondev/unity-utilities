@@ -90,6 +90,41 @@ namespace INVELON.Editor.Tests
         }
 
         [Test]
+        public void Build_MarksTarballPackagesWithTgzFileName()
+        {
+            var packages = new List<ExportPackage>
+            {
+                new ExportPackage
+                {
+                    Id = "com.xoia.basicscripts", Version = "0.0.22", DisplayName = "Basic Scripts",
+                    TgzFileName = "com.xoia.basicscripts-0.0.22.tgz"
+                }
+            };
+            string json = ExportJsonBuilder.Build(null, "6000.0.32f1", packages, null);
+            StringAssert.Contains("\"source\": \"tarball\"", json);
+            StringAssert.Contains("\"tgzFileName\": \"com.xoia.basicscripts-0.0.22.tgz\"", json);
+            StringAssert.DoesNotContain("\"source\": \"registry\"", json);
+        }
+
+        [Test]
+        public void Build_TgzFileNameTakesPrecedenceOverOpenUpmScope()
+        {
+            // A tarball package id could theoretically also appear in an openupm scope list;
+            // the explicit tgzFileName must win so it isn't misclassified as "openupm".
+            var packages = new List<ExportPackage>
+            {
+                new ExportPackage
+                {
+                    Id = "com.xoia.basicscripts", Version = "0.0.22", DisplayName = "Basic Scripts",
+                    TgzFileName = "com.xoia.basicscripts-0.0.22.tgz"
+                }
+            };
+            var scopes = new HashSet<string> { "com.xoia.basicscripts" };
+            string json = ExportJsonBuilder.Build(null, "6000.0.32f1", packages, scopes);
+            StringAssert.Contains("\"source\": \"tarball\"", json);
+        }
+
+        [Test]
         public void Build_UsesCurrentSchemaVersionAndTemplateInfo()
         {
             var manifest = new TemplateManifest { templateName = "My VR Template", renderPipeline = "URP" };

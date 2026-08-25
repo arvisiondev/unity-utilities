@@ -3,7 +3,9 @@
 ## [Unreleased]
 
 ### Fixed
-- **Tarball installs no longer hardcode an absolute path in `manifest.json`.** `Client.Add()` was called with a machine-specific absolute path (`file:D:/Dev/.../Packages/x.tgz`), which UPM then wrote back into `manifest.json`, overwriting the relative `file:./x.tgz` reference and breaking the project for anyone who checked it out to a different path/drive. The identifier passed to `Client.Add()` is now relative, matching what's already written to the manifest.
+- **Tarball installs no longer hardcode an absolute path in `manifest.json`.** The Install button still ended up writing an absolute path even after the identifier passed to `Client.Add()` was made relative: `Client.Add()` resolves any `file:` identifier to an absolute path and writes that back into `manifest.json`, which clobbered the relative `file:./x.tgz` entry that `EnsureTarballInManifest` had just written. `Client.Add()` is no longer called for tarball entries at all — registration happens entirely through the direct manifest edit, which is the only step that was ever needed.
+- **Export now recognizes tarball packages.** *Export current packages* had no tarball detection: a `file:` package was exported as `source: "registry"` with no `tgzFileName`, producing a manifest that would try (and fail) to install it from the registry on re-import. Packages installed as a local tarball (`PackageSource.LocalTarball`) now export with `source: "tarball"` and the correct `tgzFileName`.
+- **Asset Store detection no longer depends on an exact `assetFolderPath` match.** If the configured path was stale, mistyped, or the asset imported into a different parent folder, the row always showed "Missing" even when the asset was present, with no indication of what was checked. Detection now falls back to searching anywhere under `Assets/` for a folder matching the configured path's last segment, and each row's note shows the path that was found (or checked, if still missing) so a wrong `assetFolderPath` can be spotted and fixed.
 
 ## [2.1.0] - 2026-07-14
 

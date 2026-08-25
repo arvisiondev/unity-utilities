@@ -12,6 +12,7 @@ namespace INVELON.Editor
         public string Version;
         public string DisplayName;
         public string GitUrl;      // non-null only for git packages (URL only, no "name@" prefix)
+        public string TgzFileName; // non-null only for local tarball packages (file: ref)
     }
 
     /// <summary>
@@ -44,11 +45,14 @@ namespace INVELON.Editor
 
             for (int i = 0; i < list.Count; i++)
             {
-                ExportPackage pkg   = list[i];
-                bool          isGit = !string.IsNullOrEmpty(pkg.GitUrl);
-                bool          isUpm = !isGit && openUpmScopes != null && openUpmScopes.Contains(pkg.Id);
-                string        source = isGit ? PackageSourceIds.Git
-                                             : (isUpm ? PackageSourceIds.OpenUpm : PackageSourceIds.Registry);
+                ExportPackage pkg      = list[i];
+                bool          isGit    = !string.IsNullOrEmpty(pkg.GitUrl);
+                bool          isTgz    = !isGit && !string.IsNullOrEmpty(pkg.TgzFileName);
+                bool          isUpm    = !isGit && !isTgz && openUpmScopes != null && openUpmScopes.Contains(pkg.Id);
+                string        source   = isGit ? PackageSourceIds.Git
+                                       : isTgz  ? PackageSourceIds.Tarball
+                                       : isUpm  ? PackageSourceIds.OpenUpm
+                                                : PackageSourceIds.Registry;
                 bool          isLast = i == list.Count - 1;
 
                 sb.AppendLine("    {");
@@ -58,6 +62,8 @@ namespace INVELON.Editor
 
                 if (isGit)
                     sb.AppendLine($"      \"url\": \"{J(pkg.GitUrl)}\",");
+                else if (isTgz)
+                    sb.AppendLine($"      \"tgzFileName\": \"{J(pkg.TgzFileName)}\",");
                 else if (isUpm)
                     sb.AppendLine("      \"url\": \"https://package.openupm.com\",");
 

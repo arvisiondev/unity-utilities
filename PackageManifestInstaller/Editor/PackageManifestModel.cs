@@ -54,6 +54,13 @@ namespace INVELON.Editor
         public PackageStatus Status;
         public string        InstalledVersion;
         public string        ErrorMessage;
+
+        /// <summary>
+        /// Asset Store only: the path (relative to Assets/) where the folder was found,
+        /// or the configured assetFolderPath when it could not be found anywhere. Used to
+        /// show the user what was actually checked instead of a bare "Missing".
+        /// </summary>
+        public string AssetPathChecked;
     }
 
     /// <summary>One discovered *.dependencies.json file and its parsed rows.</summary>
