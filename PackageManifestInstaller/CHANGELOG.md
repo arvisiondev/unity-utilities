@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0] - 2026-08-25
 
 ### Fixed
 - **Tarball installs no longer hardcode an absolute path in `manifest.json`.** The Install button still ended up writing an absolute path even after the identifier passed to `Client.Add()` was made relative: `Client.Add()` resolves any `file:` identifier to an absolute path and writes that back into `manifest.json`, which clobbered the relative `file:./x.tgz` entry that `EnsureTarballInManifest` had just written. `Client.Add()` is no longer called for tarball entries at all — registration happens entirely through the direct manifest edit, which is the only step that was ever needed.
