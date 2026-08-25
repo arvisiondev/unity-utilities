@@ -92,6 +92,7 @@ namespace INVELON.Editor
         public const string LogRegistryAdded     = LogPrefix + "Scoped registry '{0}' configured for '{1}'.";
         public const string LogRegistryError     = LogPrefix + "Error updating manifest.json: {0}";
         public const string LogTarballRegistered = LogPrefix + "Tarball '{0}' registered in manifest.json as '{1}'.";
+        public const string LogTarballRenormalized = LogPrefix + "Tarball '{0}' was resolved to an absolute path by UPM; rewritten back to '{1}'.";
         public const string LogTarballError      = LogPrefix + "Error registering tarball '{0}': {1}";
         public const string LogLockCleaned       = LogPrefix + "Stale entry for '{0}' removed from packages-lock.json.";
         public const string LogExported          = LogPrefix + "Exported to: {0}";

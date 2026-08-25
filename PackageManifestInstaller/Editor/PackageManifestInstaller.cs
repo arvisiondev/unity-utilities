@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
+using PackageManagerEvents = UnityEditor.PackageManager.Events;
 
 namespace INVELON.Editor
 {
@@ -62,12 +63,69 @@ namespace INVELON.Editor
             // ProcessQueue refreshes package statuses when the queue drains.
             if (!TryResumePendingInstall())
                 StartListRequest();
+
+            // UPM rewrites "file:./x.tgz" tarball refs to an absolute, machine-specific
+            // path once it resolves them (including after the domain reload a newly
+            // registered package can trigger). registeredPackages (past tense) fires
+            // AFTER that resolution has been applied and written to manifest.json, so
+            // it's safe to rewrite the entry back to relative from here — doing it from
+            // registeringPackages (before-the-fact) would race with UPM's own write.
+            PackageManagerEvents.registeredPackages += OnRegisteredPackages;
         }
 
         private void OnDisable()
         {
             EditorApplication.update -= PollListRequest;
             EditorApplication.update -= PollAddRequest;
+            PackageManagerEvents.registeredPackages -= OnRegisteredPackages;
+        }
+
+        private void OnRegisteredPackages(PackageRegistrationEventArgs args)
+        {
+            RenormalizeTarballPaths();
+        }
+
+        /// <summary>
+        /// Re-writes any tarball dependency in manifest.json that UPM resolved to an
+        /// absolute path back to its relative "file:./name.tgz" form.
+        /// </summary>
+        private void RenormalizeTarballPaths()
+        {
+            string manifestPath = Path.GetFullPath(
+                Path.Combine(Application.dataPath, "../Packages/manifest.json"));
+            if (!File.Exists(manifestPath)) return;
+
+            IEnumerable<PackageEntry> tarballEntries = _tabs
+                .Where(t => t.Manifest != null)
+                .SelectMany(t => t.Manifest.packages)
+                .Where(e => e.source == PackageSourceIds.Tarball);
+
+            try
+            {
+                string content = File.ReadAllText(manifestPath);
+                bool   anyChanged = false;
+
+                foreach (PackageEntry entry in tarballEntries)
+                {
+                    string fileRef = $"file:./{ResolveTgzFileName(entry)}";
+                    if (!UpmManifestJson.IsTarballPathAbsolute(content, entry.id, fileRef))
+                        continue;
+
+                    content = UpmManifestJson.SetDependency(content, entry.id, fileRef, out bool changed);
+                    if (changed)
+                    {
+                        anyChanged = true;
+                        Debug.Log(string.Format(InstallerStrings.LogTarballRenormalized, entry.id, fileRef));
+                    }
+                }
+
+                if (anyChanged)
+                    File.WriteAllText(manifestPath, content);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError(string.Format(InstallerStrings.LogTarballError, "manifest", ex.Message));
+            }
         }
 
         private void OnDestroy()

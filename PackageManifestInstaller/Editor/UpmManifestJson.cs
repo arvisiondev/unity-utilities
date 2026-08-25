@@ -42,6 +42,20 @@ namespace INVELON.Editor
         }
 
         /// <summary>
+        /// True when dependencies[packageId] is a "file:" reference that is NOT the expected
+        /// relative form (e.g. UPM re-resolved "file:./x.tgz" to an absolute, machine-specific
+        /// path after the manifest was written). Used to detect when UPM has clobbered a
+        /// tarball reference so it can be rewritten back to relative.
+        /// </summary>
+        public static bool IsTarballPathAbsolute(string json, string packageId, string expectedRelativeValue)
+        {
+            string value = GetDependencyValue(json, packageId);
+            return value != null
+                && value.StartsWith("file:", StringComparison.Ordinal)
+                && !string.Equals(value, expectedRelativeValue, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Returns every scope listed under scoped registries whose URL contains
         /// <paramref name="urlSubstring"/> (case-insensitive). Used to detect openupm packages.
         /// </summary>
