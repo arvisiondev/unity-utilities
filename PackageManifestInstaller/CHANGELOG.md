@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Tarball installs no longer hardcode an absolute path in `manifest.json`.** `Client.Add()` was called with a machine-specific absolute path (`file:D:/Dev/.../Packages/x.tgz`), which UPM then wrote back into `manifest.json`, overwriting the relative `file:./x.tgz` reference and breaking the project for anyone who checked it out to a different path/drive. The identifier passed to `Client.Add()` is now relative, matching what's already written to the manifest.
+
 ## [2.1.0] - 2026-07-14
 
 ### Fixed

@@ -780,12 +780,9 @@ namespace INVELON.Editor
                     return entry.url;
 
                 case PackageSourceIds.Tarball:
-                {
-                    string fileName    = ResolveTgzFileName(entry);
-                    string packagesDir = Path.GetFullPath(Path.Combine(Application.dataPath, "../Packages"));
-                    string fullPath    = Path.Combine(packagesDir, fileName);
-                    return $"file:{fullPath.Replace('\\', '/')}";
-                }
+                    // Relative to Packages/, so manifest.json stays portable across machines
+                    // (must match the fileRef written by EnsureTarballInManifest).
+                    return $"file:./{ResolveTgzFileName(entry)}";
 
                 case PackageSourceIds.AssetStore:
                     // Unreachable: the Install button is never shown for assetstore entries.
