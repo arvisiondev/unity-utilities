@@ -269,6 +269,59 @@ namespace INVELON.Editor.Tests
             Assert.IsTrue(example.Contains("com.x.y"));
         }
 
+        [Test]
+        public void AddScopedRegistry_SameRegistryForSeveralPackages_SingleBlock()
+        {
+            string json = BasicManifest;
+            json = UpmManifestJson.AddScopedRegistry(json, "INVELON", "http://192.168.12.200:4873", "com.xoia.a", out _);
+            json = UpmManifestJson.AddScopedRegistry(json, "INVELON", "http://192.168.12.200:4873/", "com.xoia.b", out _);
+            json = UpmManifestJson.AddScopedRegistry(json, "INVELON", " HTTP://192.168.12.200:4873 ", "com.invelon", out _);
+
+            Assert.AreEqual(1, CountOccurrences(json, "192.168.12.200:4873"));
+            var scopes = UpmManifestJson.GetScopesForRegistriesMatching(json, "192.168.12.200");
+            Assert.IsTrue(scopes.Contains("com.xoia.a"));
+            Assert.IsTrue(scopes.Contains("com.xoia.b"));
+            Assert.IsTrue(scopes.Contains("com.invelon"));
+            AssertNoDanglingCommas(json);
+        }
+
+        [Test]
+        public void AddScopedRegistry_MergesExistingDuplicateRegistries()
+        {
+            const string json =
+@"{
+  ""scopedRegistries"": [
+    {
+      ""name"": ""INVELON"",
+      ""url"": ""http://192.168.12.200:4873"",
+      ""scopes"": [ ""com.xoia.a"" ]
+    },
+    {
+      ""name"": ""corp"",
+      ""url"": ""https://npm.corp.com"",
+      ""scopes"": [ ""com.corp.tools"" ]
+    },
+    {
+      ""name"": ""INVELON"",
+      ""url"": ""http://192.168.12.200:4873/"",
+      ""scopes"": [ ""com.xoia.b"" ]
+    }
+  ],
+  ""dependencies"": {}
+}";
+            string result = UpmManifestJson.AddScopedRegistry(
+                json, "INVELON", "http://192.168.12.200:4873", "com.xoia.c", out bool changed);
+
+            Assert.IsTrue(changed);
+            Assert.AreEqual(1, CountOccurrences(result, "192.168.12.200:4873"));
+            var scopes = UpmManifestJson.GetScopesForRegistriesMatching(result, "192.168.12.200");
+            Assert.IsTrue(scopes.Contains("com.xoia.a"));
+            Assert.IsTrue(scopes.Contains("com.xoia.b"));
+            Assert.IsTrue(scopes.Contains("com.xoia.c"));
+            Assert.IsTrue(UpmManifestJson.GetScopesForRegistriesMatching(result, "corp.com").Contains("com.corp.tools"));
+            AssertNoDanglingCommas(result);
+        }
+
         // ── GetScopesForRegistriesMatching ────────────────────────────────────
 
         [Test]

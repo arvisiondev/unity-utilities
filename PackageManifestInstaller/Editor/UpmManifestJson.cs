@@ -100,49 +100,24 @@ namespace INVELON.Editor
         /// Ensures a scoped registry with <paramref name="url"/> exists and contains
         /// <paramref name="scope"/>. If a registry with the same URL already exists, the
         /// scope is appended to it (no duplicate registry blocks are ever created).
+        /// URLs are compared normalized (trimmed, case-insensitive, trailing '/' ignored),
+        /// and registries already duplicated by earlier runs are merged into one, since
+        /// UPM rejects the whole manifest ("scopedRegistries[n]" contains a duplicate value).
         /// </summary>
         public static string AddScopedRegistry(string json, string registryName, string url, string scope, out bool changed)
         {
-            changed = false;
+            json = MergeDuplicateRegistries(json, out changed);
+
+            string appended = AppendScopeToRegistry(json, url, scope, out bool found, out bool scopeAdded);
+            if (found)
+            {
+                changed |= scopeAdded;
+                return appended;
+            }
 
             if (TryGetRootMember(json, "scopedRegistries", out _, out int aStart, out int aEnd) &&
                 json[aStart] == '[')
             {
-                foreach ((int eStart, int eEnd) in EnumerateArrayElements(json, aStart, aEnd))
-                {
-                    if (json[eStart] != '{') continue;
-
-                    if (!TryFindDirectMember(json, eStart, eEnd, "url", out _, out int uS, out int uE))
-                        continue;
-                    if (!string.Equals(ExtractString(json, uS, uE), url, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    // Registry already exists — ensure the scope is present.
-                    if (TryFindDirectMember(json, eStart, eEnd, "scopes", out _, out int sS, out int sE) &&
-                        json[sS] == '[')
-                    {
-                        foreach ((int scS, int scE) in EnumerateArrayElements(json, sS, sE))
-                            if (string.Equals(ExtractString(json, scS, scE), scope, StringComparison.OrdinalIgnoreCase))
-                                return json; // scope already registered — nothing to do
-
-                        bool emptyArr = IsBlank(json, sS + 1, sE);
-                        string insert = emptyArr
-                            ? $"\n        \"{scope}\"\n      "
-                            : $"\n        \"{scope}\",";
-                        changed = true;
-                        return json.Insert(sS + 1, insert);
-                    }
-
-                    // Registry object without a scopes array — add one.
-                    {
-                        bool emptyObj = IsBlank(json, eStart + 1, eEnd);
-                        string insert = $"\n      \"scopes\": [\n        \"{scope}\"\n      ]" +
-                                        (emptyObj ? "\n    " : ",");
-                        changed = true;
-                        return json.Insert(eStart + 1, insert);
-                    }
-                }
-
                 // No registry with this URL — insert a new one at the start of the array.
                 string block    = BuildRegistryBlock(registryName, url, scope);
                 bool arrayEmpty = IsBlank(json, aStart + 1, aEnd);
@@ -253,6 +228,148 @@ namespace INVELON.Editor
                 removeStart--;
 
             changed = true;
+            return json.Remove(removeStart, removeEnd - removeStart);
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        //  Scoped registry internals
+        // ──────────────────────────────────────────────────────────────────────
+
+        private static bool UrlsEqual(string a, string b) =>
+            string.Equals(NormalizeUrl(a), NormalizeUrl(b), StringComparison.OrdinalIgnoreCase);
+
+        private static string NormalizeUrl(string url) => (url ?? string.Empty).Trim().TrimEnd('/');
+
+        /// <summary>
+        /// Appends <paramref name="scope"/> to the FIRST registry whose URL matches
+        /// <paramref name="url"/>. <paramref name="found"/> is false when no such registry exists.
+        /// </summary>
+        private static string AppendScopeToRegistry(string json, string url, string scope, out bool found, out bool added)
+        {
+            found = added = false;
+
+            if (!TryGetRootMember(json, "scopedRegistries", out _, out int aStart, out int aEnd) ||
+                json[aStart] != '[')
+                return json;
+
+            foreach ((int eStart, int eEnd) in EnumerateArrayElements(json, aStart, aEnd))
+            {
+                if (json[eStart] != '{') continue;
+
+                if (!TryFindDirectMember(json, eStart, eEnd, "url", out _, out int uS, out int uE))
+                    continue;
+                if (!UrlsEqual(ExtractString(json, uS, uE), url))
+                    continue;
+
+                found = true;
+
+                // Registry already exists — ensure the scope is present.
+                if (TryFindDirectMember(json, eStart, eEnd, "scopes", out _, out int sS, out int sE) &&
+                    json[sS] == '[')
+                {
+                    foreach ((int scS, int scE) in EnumerateArrayElements(json, sS, sE))
+                        if (string.Equals(ExtractString(json, scS, scE), scope, StringComparison.OrdinalIgnoreCase))
+                            return json; // scope already registered — nothing to do
+
+                    bool emptyArr = IsBlank(json, sS + 1, sE);
+                    string insert = emptyArr
+                        ? $"\n        \"{scope}\"\n      "
+                        : $"\n        \"{scope}\",";
+                    added = true;
+                    return json.Insert(sS + 1, insert);
+                }
+
+                // Registry object without a scopes array — add one.
+                bool emptyObj = IsBlank(json, eStart + 1, eEnd);
+                string member = $"\n      \"scopes\": [\n        \"{scope}\"\n      ]" +
+                                (emptyObj ? "\n    " : ",");
+                added = true;
+                return json.Insert(eStart + 1, member);
+            }
+
+            return json;
+        }
+
+        /// <summary>
+        /// Collapses scoped registries that share a URL into the first one, moving their
+        /// scopes over. Repairs manifests already broken by earlier duplicate inserts.
+        /// </summary>
+        private static string MergeDuplicateRegistries(string json, out bool changed)
+        {
+            changed = false;
+
+            while (true)
+            {
+                if (!TryGetRootMember(json, "scopedRegistries", out _, out int aStart, out int aEnd) ||
+                    json[aStart] != '[')
+                    return json;
+
+                var seen = new List<string>();
+                bool merged = false;
+
+                foreach ((int eStart, int eEnd) in EnumerateArrayElements(json, aStart, aEnd))
+                {
+                    if (json[eStart] != '{') continue;
+                    if (!TryFindDirectMember(json, eStart, eEnd, "url", out _, out int uS, out int uE))
+                        continue;
+
+                    string url = ExtractString(json, uS, uE);
+                    if (!seen.Exists(u => UrlsEqual(u, url)))
+                    {
+                        seen.Add(url);
+                        continue;
+                    }
+
+                    // Duplicate — remember its scopes, drop the block, re-add scopes to the first one.
+                    var scopes = new List<string>();
+                    if (TryFindDirectMember(json, eStart, eEnd, "scopes", out _, out int sS, out int sE) &&
+                        json[sS] == '[')
+                    {
+                        foreach ((int scS, int scE) in EnumerateArrayElements(json, sS, sE))
+                        {
+                            string s = ExtractString(json, scS, scE);
+                            if (!string.IsNullOrEmpty(s)) scopes.Add(s);
+                        }
+                    }
+
+                    json = RemoveArrayElement(json, eStart, eEnd);
+                    foreach (string s in scopes)
+                        json = AppendScopeToRegistry(json, url, s, out _, out _);
+
+                    changed = merged = true;
+                    break; // indices are stale — rescan
+                }
+
+                if (!merged) return json;
+            }
+        }
+
+        /// <summary>Removes the array element spanning [start, end] along with one adjacent comma.</summary>
+        private static string RemoveArrayElement(string json, int start, int end)
+        {
+            int removeStart = start;
+            int removeEnd   = end + 1; // exclusive
+
+            int t = removeEnd;
+            while (t < json.Length && char.IsWhiteSpace(json[t])) t++;
+
+            int p = removeStart - 1;
+            while (p > 0 && char.IsWhiteSpace(json[p])) p--;
+
+            if (t < json.Length && json[t] == ',')
+            {
+                removeStart = p + 1; // also drop the whitespace/newline before the element
+                removeEnd   = t + 1;
+            }
+            else if (p > 0 && json[p] == ',')
+            {
+                removeStart = p;
+            }
+            else
+            {
+                removeStart = p + 1;
+            }
+
             return json.Remove(removeStart, removeEnd - removeStart);
         }
 

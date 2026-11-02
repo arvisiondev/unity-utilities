@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.1] - 2026-11-02
+
+### Fixed
+- **Several packages from the same private registry no longer produce duplicate scoped registries.** Registry URLs were compared verbatim, so variants of the same URL (trailing `/`, whitespace, casing) inserted a second registry block, and UPM rejected the whole manifest (`"scopedRegistries[1]" contains a duplicate value`), failing every install. URLs are now compared normalized, the scope is appended to the existing registry, and registries already duplicated by earlier runs are merged into one.
+
 ## [2.2.0] - 2026-08-25
 
 ### Fixed
